@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbital Ladder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: controls on top, then two columns: energy ladder (the board) and a side panel (task, pieces, feedback). */
+:root{
+  --bg:#f3f5fa; --surface:#ffffff; --ink:#18213a; --muted:#5d6885; --line:#d5dbe9;
+  --accent:#3d3bd6; --accent-ink:#ffffff;
+  --s:#1f7ae0; --p:#0e9a6c; --d:#d9731a;
+  --good:#0e8a55; --good-bg:#e2f6ec; --bad:#c23636; --bad-bg:#fde9e7;
+  --font-display:"Baloo Bhaijaan 2","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --font-body:"IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#101528; --surface:#1a2140; --ink:#eef1fb; --muted:#a3add0; --line:#313a63;
+    --accent:#8f8dff; --accent-ink:#0d1024;
+    --s:#5aa8ff; --p:#3fd09c; --d:#ffa04d;
+    --good:#4ad893; --good-bg:#143a2c; --bad:#ff8a80; --bad-bg:#47201f;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#101528; --surface:#1a2140; --ink:#eef1fb; --muted:#a3add0; --line:#313a63;
+  --accent:#8f8dff; --accent-ink:#0d1024;
+  --s:#5aa8ff; --p:#3fd09c; --d:#ffa04d;
+  --good:#4ad893; --good-bg:#143a2c; --bad:#ff8a80; --bad-bg:#47201f;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between}
+h1{font-family:var(--font-display);font-weight:800;font-size:1.9rem;line-height:1.1;margin:0;text-wrap:balance}
+h2{font-family:var(--font-display);font-weight:600;font-size:1.15rem;margin:0;text-wrap:balance}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,button{font:inherit;color:inherit}
+select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:760px){.main{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.element{display:flex;gap:14px;align-items:center}
+.tile-el{width:84px;height:84px;border:2px solid var(--ink);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none;line-height:1}
+.tile-el .z{font-size:.8rem;font-variant-numeric:tabular-nums;color:var(--muted)}
+.tile-el .sym{font-family:var(--font-display);font-weight:800;font-size:2.1rem}
+.element .nm{font-family:var(--font-display);font-weight:600;font-size:1.3rem;line-height:1.2}
+.element .ec{color:var(--muted)}
+.steps{display:flex;gap:8px}
+.step{flex:1;border-radius:999px;padding:4px 12px;font-size:.85rem;font-weight:600;border:1px solid var(--line);color:var(--muted);text-align:center}
+.step.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.step.done{border-color:var(--good);color:var(--good)}
+.task{margin:0;max-width:60ch}
+/* ladder */
+.ladder-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.axis{font-size:.8rem;color:var(--muted)}
+.ladder{display:flex;flex-direction:column-reverse;gap:8px;min-height:120px;border-inline-start:3px solid var(--line);padding-inline-start:12px;overflow-x:auto}
+.row{display:flex;align-items:center;gap:10px;animation:pop .25s ease-out}
+.lab{font-family:var(--font-display);font-weight:800;font-size:1.1rem;width:46px;flex:none;text-align:center;border-radius:8px;padding:2px 0;color:#fff;direction:ltr}
+.lab.s{background:var(--s)} .lab.p{background:var(--p)} .lab.d{background:var(--d)}
+.boxes{display:flex;gap:6px;direction:ltr}
+.box{width:46px;height:50px;border:2px solid var(--ink);border-radius:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;gap:1px;font-size:1.5rem;font-weight:700;line-height:1;padding:0;cursor:pointer}
+.box:disabled{cursor:default;opacity:.55}
+.box:not(:disabled):hover{border-color:var(--accent);background:var(--surface)}
+.box .u{color:var(--accent)} .box .dn{color:var(--bad)}
+.empty{color:var(--muted);font-size:.95rem;margin:auto 0}
+/* tray */
+.tray{display:flex;flex-wrap:wrap;gap:8px;direction:ltr}
+.subtile{font-family:var(--font-display);font-weight:800;font-size:1.25rem;min-width:62px;padding:8px 10px;border-radius:10px;border:2px solid var(--ink);background:var(--surface);cursor:pointer}
+.subtile:hover{border-color:var(--accent);transform:translateY(-2px)}
+.shake{animation:shake .35s}
+.spins{display:flex;gap:10px;direction:ltr}
+.spin{flex:1;border:2px solid var(--line);border-radius:12px;background:var(--surface);padding:6px;cursor:pointer;font-size:1.9rem;font-weight:700;line-height:1.1}
+.spin small{display:block;font-size:.8rem;font-weight:500;color:var(--muted)}
+.spin[aria-pressed="true"]{border-color:var(--accent);background:var(--bg);box-shadow:0 0 0 2px var(--accent) inset}
+.spin .u{color:var(--accent)} .spin .dn{color:var(--bad)}
+.left{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--accent)}
+.dot.used{background:transparent;border:1.5px solid var(--line)}
+.count{font-variant-numeric:tabular-nums;font-weight:600}
+.fb{border-radius:10px;padding:10px 12px;border:1px solid var(--line);min-height:3.4em}
+.fb.good{background:var(--good-bg);border-color:var(--good)}
+.fb.bad{background:var(--bad-bg);border-color:var(--bad)}
+.fb b{display:block}
+.tally{display:flex;flex-wrap:wrap;gap:6px;font-size:.85rem}
+.chip{border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-variant-numeric:tabular-nums}
+.rowbtns{display:flex;flex-wrap:wrap;gap:8px}
+.config{font-family:var(--font-display);font-size:1.4rem;font-weight:600;direction:ltr;text-align:start;unicode-bidi:plaintext}
+.stars{font-size:1.6rem;letter-spacing:4px;color:var(--d)}
+.note{font-size:.9rem;color:var(--muted);margin:0}
+/* hint */
+.hint{display:grid;grid-template-columns:auto repeat(3,52px);gap:6px;align-items:center;direction:ltr;width:max-content}
+.hint .h{font-size:.8rem;color:var(--muted);text-align:center}
+.cell{border-radius:8px;padding:4px 0;text-align:center;font-weight:600;color:#fff;line-height:1.15}
+.cell small{display:block;font-weight:400;font-size:.7rem;opacity:.9}
+.k1{background:#5b6ee1}.k2{background:#1f7ae0}.k3{background:#0e9a6c}.k4{background:#d9731a}.k5{background:#c23666}
+.rules{margin:0;padding-inline-start:1.1em;display:flex;flex-direction:column;gap:6px;font-size:.92rem}
+details summary{cursor:pointer;font-weight:600}
+details[open] summary{margin-bottom:10px}
+bdi{font-weight:600}
+@keyframes shake{25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-4px)}}
+@keyframes pop{from{transform:scale(.92);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title"></h1>
+    <div class="controls">
+      <select id="level" aria-label="Level"></select>
+      <select id="pick" aria-label="Element"></select>
+      <button class="btn primary" id="new"></button>
+      <button class="btn" id="lang"></button>
+    </div>
+  </header>
+
+  <div class="main">
+    <section class="card" aria-live="off">
+      <div class="element" id="element"></div>
+      <div class="ladder-head"><h2 id="ladderTitle"></h2><span class="axis" id="axis"></span></div>
+      <div class="ladder" id="ladder"></div>
+    </section>
+
+    <section class="card">
+      <div class="steps"><div class="step" id="st1"></div><div class="step" id="st2"></div></div>
+      <p class="task" id="task"></p>
+      <div id="panel" style="display:flex;flex-direction:column;gap:12px"></div>
+      <div class="fb" id="fb" role="status" aria-live="polite"></div>
+      <div class="tally" id="tally"></div>
+      <details id="hintBox">
+        <summary id="hintSum"></summary>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="hint" id="hint"></div>
+          <ol class="rules" id="rules"></ol>
+        </div>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+const ORDER=[['1s',1,0],['2s',2,0],['2p',2,1],['3s',3,0],['3p',3,1],['4s',4,0],['3d',3,2],['4p',4,1],['5s',5,0]]
+  .map(([id,n,l])=>({id,n,l,boxes:2*l+1,cap:2*(2*l+1),type:'spd'[l]}));
+const EL=[["H","Hydrogen","هيدروجين"],["He","Helium","هيليوم"],["Li","Lithium","ليثيوم"],["Be","Beryllium","بيريليوم"],["B","Boron","بورون"],["C","Carbon","كربون"],["N","Nitrogen","نيتروجين"],["O","Oxygen","أكسجين"],["F","Fluorine","فلور"],["Ne","Neon","نيون"],["Na","Sodium","صوديوم"],["Mg","Magnesium","مغنيسيوم"],["Al","Aluminum","ألومنيوم"],["Si","Silicon","سيليكون"],["P","Phosphorus","فوسفور"],["S","Sulfur","كبريت"],["Cl","Chlorine","كلور"],["Ar","Argon","أرغون"],["K","Potassium","بوتاسيوم"],["Ca","Calcium","كالسيوم"],["Sc","Scandium","سكانديوم"],["Ti","Titanium","تيتانيوم"],["V","Vanadium","فاناديوم"],["Cr","Chromium","كروم"],["Mn","Manganese","منغنيز"],["Fe","Iron","حديد"],["Co","Cobalt","كوبالت"],["Ni","Nickel","نيكل"],["Cu","Copper","نحاس"],["Zn","Zinc","زنك"],["Ga","Gallium","غاليوم"],["Ge","Germanium","جرمانيوم"],["As","Arsenic","زرنيخ"],["Se","Selenium","سيلينيوم"],["Br","Bromine","بروم"],["Kr","Krypton","كريبتون"]];
+const LEVELS=[[1,10],[11,18],[19,36]];
+const b=x=>`<bdi>${x}</bdi>`;
+const T={
+en:{
+ title:"El-Nesr Orbital Ladder", levels:["Level 1: H to Ne","Level 2: Na to Ar","Level 3: K to Kr"], random:"Random element", new:"New atom", lang:"العربية",
+ ladder:"Energy ladder", axis:"energy increases upward ↑", emptyLadder:"The ladder is empty. Pick the lowest-energy sublevel first.",
+ st1:"1 · Order the sublevels", st2:"2 · Place the electrons",
+ task1:"Tap the sublevels from lowest energy to highest to build the ladder.",
+ task2:"Choose a spin, then tap an orbital box to place one electron. Place all of them.",
+ taskDone:"Atom complete.",
+ electrons:n=>`${n} electrons`, left:n=>`Electrons left: ${n}`, up:"spin up", down:"spin down", undo:"Undo last electron", restart:"Restart this atom", next:"Next atom",
+ start:"Ready when you are.",
+ okOrder:id=>`<b>Correct.</b> ${b(id)} goes on the ladder.`,
+ orderDone:"<b>Ladder built.</b> Now place the electrons, starting from the bottom.",
+ badOrder:(id,v)=>`<b>Not yet.</b> ${b(id)} has n + ℓ = ${v}. A lower-energy sublevel is still waiting.`,
+ okPlace:"<b>Good.</b> That placement follows all three rules.",
+ aufbau:low=>`<b>Aufbau principle</b> Fill the lowest-energy sublevel first. ${b(low)} is not full yet.`,
+ pauliFull:"<b>Pauli exclusion principle</b> An orbital holds at most 2 electrons.",
+ pauliSame:"<b>Pauli exclusion principle</b> Two electrons in one orbital must have opposite spins.",
+ hundPair:id=>`<b>Hund's rule</b> Put one electron in every orbital of ${b(id)} before pairing any.`,
+ hundSpin:id=>`<b>Hund's rule</b> Unpaired electrons in ${b(id)} must all spin the same way.`,
+ done:"<b>Complete.</b> Every electron is in its lowest-energy place.",
+ config:"Electron configuration", unpaired:n=>`Unpaired electrons: ${n}`,
+ exc:"Note: real chromium and copper are exceptions (4s¹ with a half-full or full 3d). This game shows the configuration the Aufbau order predicts.",
+ tally:{order:"Order",aufbau:"Aufbau",pauli:"Pauli",hund:"Hund"}, mistakes:"Mistakes",
+ hintSum:"Hint: the n + ℓ rule and the three rules",
+ hintN:"n", hintCap:"n + ℓ",
+ rules:["<b>Order:</b> lower n + ℓ fills first. If two sublevels tie, the one with smaller n fills first. (ℓ: s = 0, p = 1, d = 2)","<b>Aufbau:</b> electrons enter the lowest-energy sublevel that still has room.","<b>Pauli:</b> at most two electrons per orbital, with opposite spins.","<b>Hund:</b> within one sublevel, one electron per orbital with the same spin before any pairing."]
+},
+ar:{
+ title:"سُلَّم الأوربتالات", levels:["المستوى ١: من الهيدروجين إلى النيون","المستوى ٢: من الصوديوم إلى الأرغون","المستوى ٣: من البوتاسيوم إلى الكريبتون"], random:"عنصر عشوائي", new:"ذرّة جديدة", lang:"English",
+ ladder:"سُلَّم الطاقة", axis:"الطاقة تزداد إلى الأعلى ↑", emptyLadder:"السلّم فارغ. اختر أولًا المستوى الفرعي الأقل طاقة.",
+ st1:"١ · رتِّب المستويات الفرعية", st2:"٢ · وزِّع الإلكترونات",
+ task1:"اضغط المستويات الفرعية بالترتيب من الأقل طاقة إلى الأعلى لتبني السلّم.",
+ task2:"اختر اتجاه الغزل، ثم اضغط مربّع أوربتال لتضع فيه إلكترونًا واحدًا. ضع الإلكترونات كلها.",
+ taskDone:"اكتملت الذرّة.",
+ electrons:n=>`عدد الإلكترونات: ${n}`, left:n=>`الإلكترونات المتبقية: ${n}`, up:"غزل لأعلى", down:"غزل لأسفل", undo:"تراجع عن آخر إلكترون", restart:"أعد هذه الذرّة", next:"الذرّة التالية",
+ start:"ابدأ متى شئت.",
+ okOrder:id=>`<b>صحيح.</b> يوضع ${b(id)} على السلّم.`,
+ orderDone:"<b>اكتمل السلّم.</b> وزِّع الآن الإلكترونات بدءًا من الأسفل.",
+ badOrder:(id,v)=>`<b>ليس بعد.</b> مجموع n + ℓ للمستوى ${b(id)} يساوي ${v}. ما زال هناك مستوى فرعي أقل طاقة.`,
+ okPlace:"<b>أحسنت.</b> هذا الوضع يوافق القواعد الثلاث.",
+ aufbau:low=>`<b>مبدأ أوفباو (البناء التصاعدي)</b> املأ المستوى الأقل طاقة أولًا. المستوى ${b(low)} لم يمتلئ بعد.`,
+ pauliFull:"<b>مبدأ باولي للاستبعاد</b> لا يتّسع الأوربتال لأكثر من إلكترونين.",
+ pauliSame:"<b>مبدأ باولي للاستبعاد</b> الإلكترونان في الأوربتال الواحد يجب أن يكونا متعاكسين في الغزل.",
+ hundPair:id=>`<b>قاعدة هوند</b> ضع إلكترونًا واحدًا في كل أوربتال من ${b(id)} قبل أن تبدأ الازدواج.`,
+ hundSpin:id=>`<b>قاعدة هوند</b> الإلكترونات المفردة في ${b(id)} يجب أن يكون غزلها في اتجاه واحد.`,
+ done:"<b>اكتملت.</b> كل إلكترون في أقل موضع طاقةً متاح له.",
+ config:"التوزيع الإلكتروني", unpaired:n=>`عدد الإلكترونات المفردة: ${n}`,
+ exc:"ملاحظة: الكروم والنحاس استثناءان في الواقع (إلكترون واحد في 4s مع امتلاء أو نصف امتلاء 3d). اللعبة تعرض التوزيع الذي يتنبأ به ترتيب أوفباو.",
+ tally:{order:"الترتيب",aufbau:"أوفباو",pauli:"باولي",hund:"هوند"}, mistakes:"الأخطاء",
+ hintSum:"مساعدة: قاعدة n + ℓ والقواعد الثلاث",
+ hintN:"n", hintCap:"n + ℓ",
+ rules:["<b>الترتيب:</b> المستوى الذي مجموع n + ℓ له أصغر يمتلئ أولًا. عند التساوي يمتلئ صاحب n الأصغر أولًا. (قيم ℓ: للمستوى s صفر، وللمستوى p واحد، وللمستوى d اثنان)","<b>أوفباو:</b> يدخل الإلكترون أقل مستوى فرعي طاقةً فيه مكان.","<b>باولي:</b> إلكترونان على الأكثر في الأوربتال، ومتعاكسان في الغزل.","<b>هوند:</b> داخل المستوى الفرعي الواحد يُوضع إلكترون في كل أوربتال بالغزل نفسه قبل أي ازدواج."]
+}};
+let lang='en';
+try{lang=localStorage.getItem('ol-lang')||'en'}catch(e){}
+const t=()=>T[lang];
+const $=id=>document.getElementById(id);
+let S=null,lastZ=0;
+
+function neededCount(Z){let c=0,r=Z;while(r>0){r-=ORDER[c].cap;c++}return c}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+
+function start(Z){
+  lastZ=Z;
+  const n=Math.min(neededCount(Z)+1,ORDER.length);
+  const subs=ORDER.slice(0,n);
+  let tray=shuffle(subs.map(s=>s.id));
+  if(tray.length>1&&tray.every((id,i)=>id===subs[i].id))tray.reverse();
+  S={Z,subs,tray,placed:0,phase:1,orb:subs.map(s=>Array.from({length:s.boxes},()=>[])),left:Z,spin:'u',hist:[],
+     m:{order:0,aufbau:0,pauli:0,hund:0},fb:{k:'',f:()=>t().start},shake:null};
+  render();
+}
+function newAtom(){
+  const v=$('pick').value;
+  if(v!=='r'){start(+v);return}
+  const [a,z]=LEVELS[+$('level').value];let pool=[];
+  for(let i=Math.max(a,3);i<=z;i++)if(i!==24&&i!==29&&i!==lastZ)pool.push(i);
+  start(pool[Math.floor(Math.random()*pool.length)]);
+}
+function say(k,f){S.fb={k,f}}
+
+function clickTile(id){
+  if(S.phase!==1)return;
+  const want=S.subs[S.placed];
+  if(id===want.id){
+    S.placed++;S.tray=S.tray.filter(x=>x!==id);
+    if(S.placed===S.subs.length){S.phase=2;say('good',()=>t().orderDone)}
+    else say('good',()=>t().okOrder(id));
+  }else{
+    const s=ORDER.find(x=>x.id===id);S.m.order++;S.shake=id;
+    say('bad',()=>t().badOrder(id,s.n+s.l));
+    if(S.m.order>=2)$('hintBox').open=true;
+  }
+  render();
+}
+function clickBox(si,bi){
+  if(S.phase!==2||S.left<=0)return;
+  const box=S.orb[si][bi],sp=S.spin,sub=S.subs[si];
+  const bad=(rule,f)=>{S.m[rule]++;S.shake='b'+si+'-'+bi;say('bad',f);render()};
+  if(box.length===2)return bad('pauli',()=>t().pauliFull);
+  if(box.length===1&&box[0]===sp)return bad('pauli',()=>t().pauliSame);
+  for(let j=0;j<si;j++){
+    const cnt=S.orb[j].reduce((a,x)=>a+x.length,0);
+    if(cnt<S.subs[j].cap){const low=S.subs[j].id;return bad('aufbau',()=>t().aufbau(low))}
+  }
+  if(box.length===1&&S.orb[si].some(x=>x.length===0))return bad('hund',()=>t().hundPair(sub.id));
+  if(box.length===0&&S.orb[si].some(x=>x.length===1&&x[0]!==sp))return bad('hund',()=>t().hundSpin(sub.id));
+  box.push(sp);S.hist.push([si,bi]);S.left--;
+  if(S.left===0){S.phase=3;say('good',()=>t().done)}else say('good',()=>t().okPlace);
+  render();
+}
+function undo(){
+  const h=S.hist.pop();if(!h)return;
+  S.orb[h[0]][h[1]].pop();S.left++;S.phase=2;say('',()=>t().start);render();
+}
+
+function arrow(sp){return sp==='u'?'<span class="u">↑</span>':'<span class="dn">↓</span>'}
+function configHTML(){
+  return S.subs.map((s,i)=>{const c=S.orb[i].reduce((a,x)=>a+x.length,0);return c?`${s.id}<sup>${c}</sup>`:''}).filter(Boolean).join(' ');
+}
+function render(){
+  const L=t();
+  document.documentElement.lang=lang;document.body.dir=lang==='ar'?'rtl':'ltr';
+  document.title=L.title;$('title').textContent=L.title;$('new').textContent=L.new;$('lang').textContent=L.lang;
+  $('ladderTitle').textContent=L.ladder;$('axis').textContent=L.axis;
+  // selects
+  const lv=$('level'),pk=$('pick'),lvV=lv.value||'0',pkV=pk.value||'r';
+  lv.innerHTML=L.levels.map((x,i)=>`<option value="${i}">${x}</option>`).join('');lv.value=lvV;
+  const [a,z]=LEVELS[+lvV];let o=`<option value="r">${L.random}</option>`;
+  for(let i=a;i<=z;i++)o+=`<option value="${i}">${i} · ${EL[i-1][0]} · ${EL[i-1][lang==='ar'?2:1]}</option>`;
+  pk.innerHTML=o;pk.value=[...pk.options].some(x=>x.value===pkV)?pkV:'r';
+  // element
+  const e=EL[S.Z-1];
+  $('element').innerHTML=`<div class="tile-el"><span class="z">${S.Z}</span><span class="sym">${e[0]}</span></div>
+    <div><div class="nm">${e[lang==='ar'?2:1]}</div><div class="ec">${L.electrons(S.Z)}</div></div>`;
+  // ladder
+  let rows='';
+  for(let i=0;i<S.placed;i++){
+    const s=S.subs[i];
+    rows+=`<div class="row"><span class="lab ${s.type}">${s.id}</span><div class="boxes">`+
+      S.orb[i].map((bx,j)=>`<button class="box${S.shake==='b'+i+'-'+j?' shake':''}" data-b="${i}-${j}" ${S.phase===2?'':'disabled'} aria-label="${s.id} orbital ${j+1}">${bx.map(arrow).join('')}</button>`).join('')+
+      `</div></div>`;
+  }
+  $('ladder').innerHTML=rows||`<p class="empty">${L.emptyLadder}</p>`;
+  // steps
+  $('st1').textContent=L.st1;$('st2').textContent=L.st2;
+  $('st1').className='step '+(S.phase===1?'on':'done');
+  $('st2').className='step '+(S.phase===2?'on':S.phase===3?'done':'');
+  $('task').textContent=S.phase===1?L.task1:S.phase===2?L.task2:L.taskDone;
+  // panel
+  let p='';
+  if(S.phase===1){
+    p=`<div class="tray">`+S.tray.map(id=>`<button class="subtile${S.shake===id?' shake':''}" data-t="${id}">${id}</button>`).join('')+`</div>`;
+  }else{
+    let dots='';for(let i=0;i<S.Z;i++)dots+=`<span class="dot${i<S.left?'':' used'}"></span>`;
+    if(S.phase===2){
+      p=`<div class="spins">
+        <button class="spin" data-s="u" aria-pressed="${S.spin==='u'}"><span class="u">↑</span><small>${L.up}</small></button>
+        <button class="spin" data-s="d" aria-pressed="${S.spin==='d'}"><span class="dn">↓</span><small>${L.down}</small></button></div>
+        <div class="count">${L.left(S.left)}</div><div class="left">${dots}</div>
+        <div class="rowbtns"><button class="btn" data-a="undo">${L.undo}</button><button class="btn" data-a="restart">${L.restart}</button></div>`;
+    }else{
+      const tot=S.m.order+S.m.aufbau+S.m.pauli+S.m.hund,st=tot===0?3:tot<=2?2:1;
+      const un=S.orb.flat().filter(x=>x.length===1).length;
+      p=`<div class="stars" aria-label="${st}/3">${'★'.repeat(st)}${'☆'.repeat(3-st)}</div>
+        <div><div class="note">${L.config}</div><div class="config">${configHTML()}</div></div>
+        <div class="count">${L.unpaired(un)}</div>
+        ${S.Z===24||S.Z===29?`<p class="note">${L.exc}</p>`:''}
+        <div class="rowbtns"><button class="btn primary" data-a="next">${L.next}</button><button class="btn" data-a="restart">${L.restart}</button></div>`;
+    }
+  }
+  $('panel').innerHTML=p;
+  const fb=$('fb');fb.className='fb '+S.fb.k;fb.innerHTML=S.fb.f();
+  $('tally').innerHTML=`<span class="chip">${L.mistakes}</span>`+Object.keys(S.m).map(k=>`<span class="chip">${L.tally[k]}: ${S.m[k]}</span>`).join('');
+  // hint
+  $('hintSum').textContent=L.hintSum;
+  let h=`<span class="h">${L.hintN}</span><span class="h">s</span><span class="h">p</span><span class="h">d</span>`;
+  for(let n=1;n<=5;n++){h+=`<span class="h">${n}</span>`;for(let l=0;l<3;l++){const s=ORDER.find(x=>x.n===n&&x.l===l);h+=s?`<span class="cell k${n+l}">${s.id}<small>${L.hintCap} = ${n+l}</small></span>`:'<span></span>'}}
+  $('hint').innerHTML=h;
+  $('rules').innerHTML=L.rules.map(x=>`<li>${x}</li>`).join('');
+  S.shake=null;
+}
+document.addEventListener('click',ev=>{
+  const el=ev.target.closest('button');if(!el)return;
+  if(el.dataset.t)clickTile(el.dataset.t);
+  else if(el.dataset.b){const [i,j]=el.dataset.b.split('-').map(Number);clickBox(i,j)}
+  else if(el.dataset.s){S.spin=el.dataset.s;render()}
+  else if(el.dataset.a==='undo')undo();
+  else if(el.dataset.a==='restart')start(S.Z);
+  else if(el.dataset.a==='next'||el.id==='new')newAtom();
+  else if(el.id==='lang'){lang=lang==='en'?'ar':'en';try{localStorage.setItem('ol-lang',lang)}catch(e){}render()}
+});
+$('level').addEventListener('change',()=>{$('pick').value='r';render();newAtom()});
+$('pick').addEventListener('change',newAtom);
+start(8);
+</script>
+</body>
+</html>
